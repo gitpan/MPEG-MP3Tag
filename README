@@ -1,6 +1,6 @@
 -----BEGIN PGP SIGNED MESSAGE-----
 
-Tuesday, September 8, 1998
+Friday, October 2, 1998
 
 This archive can always be obtained from:
 
@@ -17,17 +17,22 @@ like to see.
 #============================================================================
 
 NAME
-    MPEG::MP3Tag - Manipulate / fetch TAG info from a MPEG 2 Layer III
-    audio file.
+    MPEG::MP3Tag - Manipulate / fetch TAG and header info from a MP3 audio
+    file
 
 SYNOPSIS
         #!perl -w
         use MPEG::MP3Tag;
-        set_mp3tag('Pearls_Before_Swine.mp3', 'Pearls Before Swine', q"77's",
+        my $file = 'Pearls_Before_Swine.mp3';
+        set_mp3tag($file, 'Pearls Before Swine', q"77's",
           'Sticks and Stones', '1990', q"(c) 1990 77's LTD.", 'rock & roll');
-        my $tag = get_mp3tag('Pearls_Before_Swine.mp3');
+
+        my $tag = get_mp3tag($file) or die "No TAG info";
         $tag->{GENRE} = 'rock';
-        set_mp3tag('Pearls_Before_Swine.mp3', $tag);
+        set_mp3tag($file, $tag);
+
+        my $info = get_mp3info($file);
+        printf "$file length is %d:%d", $info->{MM}, $info->{SS};
 
 DESCRIPTION
     set_mp3tag (FILE, TITLE, ARTIST, ALBUM, YEAR, COMMENT, GENRE)
@@ -44,7 +49,27 @@ DESCRIPTION
 
     get_mp3tag (FILE)
     Returns hash reference containing tag information in MP3 file. Same
-    info as described in `set_mp3tag'.
+    info as described in `set_mp3tag'. You can't change this data.
+
+    get_mp3info (FILE)
+    Returns hash reference containing file information for MP3 file.
+
+HISTORY
+    v0.11, Friday, October 2, 1998
+        Added `get_mp3info'. Thanks again to mp3tool source from Johann
+        Lindvall, because I basically stole it straight (after converting
+        it from C to Perl, of course).
+
+        I did everything I could to find the header info, but if anyone
+        has valid MP3 files that are not recognized, or has suggestions
+        for improvement of the algorithms, let me know.
+
+    v0.04, Tuesday, September 29, 1998
+        Changed a few things, replaced a regex with an `unpack' (Meng Weng
+        Wong <mengwong@pobox.com>).
+
+    v0.03, Tuesday, September 8, 1998
+        First public release.
 
 AUTHOR AND COPYRIGHT
     Chris Nandor <pudge@pobox.com> http://pudge.net/
@@ -60,17 +85,19 @@ AUTHOR AND COPYRIGHT
     Helped me figure it all out.
 
 VERSION
-    v0.03, Tuesday, September 8, 1998
+    v0.11, Friday, October 2, 1998
+
+#============================================================================
 
 -----BEGIN PGP SIGNATURE-----
 Version: PGPfreeware 5.0 for non-commercial use <http://www.pgp.com>
 Charset: noconv
 
-iQCVAwUBNfUhRShcZja3bnKtAQEG6QP+IdoFkwlmcv286JW0t5MhPvy24sQ+PzGU
-awfR771vNc15pSfjDE31O1LS9Dv+2yzwjZv52noDzFfdMcNMmT9IA/hkdUYnCTWd
-p8eRniEr4MYjjBjWOJYPnPOKUQlBFaSkvZU77HtfSvV89TAnJEKxi0SNIWdT+3Q6
-/ItBeDjRWMw=
-=AHBL
+iQCVAwUBNhVE3ShcZja3bnKtAQH5SwP/asFZ8KUezlhZOo9Ef0zqAn5SbD3DvcaA
+Zfm1zanNeiLSziTZ8zUToBPe+36b+0awLTQyAvMu2LHPBte/JO8ARHtL+oqZ63Rm
+OjHNtBT13MDSJ/BmTrLTeKVL1B31cNVGe4I71pLjjL0cr3bhn7jaGO49Z4FqTz8/
+TG6tAMbvPVQ=
+=5vqL
 -----END PGP SIGNATURE-----
 
 -- 

@@ -3,8 +3,8 @@ use strict;
 use Carp;
 use vars qw(@ISA @EXPORT $VERSION @mp3_genres %mp3_genres);
 @ISA = qw(Exporter);
-@EXPORT = qw(set_mp3tag get_mp3tag);
-$VERSION = '0.03';
+@EXPORT = qw(set_mp3tag get_mp3tag get_mp3info);
+$VERSION = '0.12';
 
 {
   my $c = -1;
@@ -15,18 +15,22 @@ $VERSION = '0.03';
 
 =head1 NAME
 
-MPEG::MP3Tag - Manipulate / fetch TAG info from a MPEG 2 Layer III
-audio file.
+MPEG::MP3Tag - Manipulate / fetch TAG and header info from a MP3 audio file
 
 =head1 SYNOPSIS
 
     #!perl -w
     use MPEG::MP3Tag;
-    set_mp3tag('Pearls_Before_Swine.mp3', 'Pearls Before Swine', q"77's",
+    my $file = 'Pearls_Before_Swine.mp3';
+    set_mp3tag($file, 'Pearls Before Swine', q"77's",
       'Sticks and Stones', '1990', q"(c) 1990 77's LTD.", 'rock & roll');
-    my $tag = get_mp3tag('Pearls_Before_Swine.mp3');
+
+    my $tag = get_mp3tag($file) or die "No TAG info";
     $tag->{GENRE} = 'rock';
-    set_mp3tag('Pearls_Before_Swine.mp3', $tag);
+    set_mp3tag($file, $tag);
+
+    my $info = get_mp3info($file);
+    printf "$file length is %d:%d", $info->{MM}, $info->{SS};
 
 =head1 DESCRIPTION
 
@@ -60,11 +64,13 @@ returned by C<get_mp3tag>.
     }
 
     $file ||= croak('No file specified');
+    my $cc = 0;
     foreach ($title, $artist, $album, $comment) {
         $_ ||= '';
         if ($^W && length($_) > 30) {
-            carp('Data too long for field; truncated');
+            carp("Data too long for field [$cc]; truncated");
         }
+        $cc++;
     }
     $year ||= '';
     if ($^W && length($year) > 4) {
@@ -73,7 +79,9 @@ returned by C<get_mp3tag>.
 
     warn "Genre $genre does not exist\n" if $^W && $genre && !exists($mp3_genres{$genre});
 
+    local(*FILE);
     open(FILE, "+<$file") or croak($!);
+    binmode(FILE);
     $oldfh = select(FILE);
     seek(FILE, -128, 2);
     while (<FILE>) {
@@ -84,7 +92,7 @@ returned by C<get_mp3tag>.
         }
         last;
     }
-#    print STDERR "Title: $title\nArtist: $artist\nAlbum: $album\nYear: $year\nComment: $comment\n";
+
     printf("TAG%-30.30s%-30.30s%-30.30s%-4.4s%-30.30s%-1.1s",
         $title, $artist, $album, $year, $comment, 
         ($genre && exists($mp3_genres{$genre})) ? chr($mp3_genres{$genre}) : "\021"
@@ -102,26 +110,22 @@ sub get_mp3tag {
 =item get_mp3tag (FILE)
 
 Returns hash reference containing tag information in MP3 file.  Same info
-as described in C<set_mp3tag>.
+as described in C<set_mp3tag>.  You can't change this data.
 
 =cut
 
     my($file, $tag, %info, @array) = @_;
     $file ||= croak('No file specified');
+    local(*FILE);
     open(FILE, "<$file") or croak($!);
+    binmode(FILE);
     seek(FILE, -128, 2);
     while(<FILE>) {$tag .= $_}
 
     return if $tag !~ /^TAG/;
-    $tag =~ /^TAG(.{30})(.{30})(.{30})(.{4})(.{30})(.)$/s; #;;
-    %info = (
-        TITLE => $1,
-        ARTIST => $2,
-        ALBUM => $3,
-        YEAR => $4,
-        COMMENT => $5,
-        GENRE => $mp3_genres[ord($6)],
-    );
+    (undef, @info{qw/TITLE ARTIST ALBUM YEAR COMMENT GENRE/}) = 
+        (unpack('a3a30a30a30a4a30', $tag),
+        $mp3_genres[ord(substr($tag, -1))]);
 
     foreach (keys %info) {
         $info{$_} =~ s/\s+$//;
@@ -129,6 +133,124 @@ as described in C<set_mp3tag>.
     close(FILE);
     return {%info};
 }
+
+sub get_mp3info {
+
+=pod
+
+=item get_mp3info (FILE)
+
+Returns hash reference containing file information for MP3 file.
+
+=cut
+
+    my($file, $o, $once, $myseek, $off, $byte, $bytes, $eof, $h, $i,
+        @frequency_tbl, @t_bitrate, @t_sampling_freq) = @_[0, 1, 2];
+
+    @t_bitrate = ([
+        [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256],
+        [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160],
+        [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160]
+    ],[
+        [0,32,64,96,128,160,192,224,256,288,320,352,384,416,448],
+        [0,32,48,56,64,80,96,112,128,160,192,224,256,320,384],
+        [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320]
+    ]);
+        
+    @t_sampling_freq = (
+        [22050, 24000, 16000],
+        [44100, 48000, 32000]
+    );
+
+    @frequency_tbl = map {eval"${_}e-3"}
+        @{$t_sampling_freq[0]}, @{$t_sampling_freq[1]};
+
+    $once ||= 0;
+    $o ||= 0;
+    $off = $o = ($once == 1 ? 0 : ($o == 164 ? 128 : $o));
+
+    local(*FILE);
+    $myseek = sub {
+        seek(FILE, $off, 0);
+        read(FILE, $byte, 4);
+    };
+
+    open(FILE, "+<$file") or croak($!);
+    binmode(FILE);
+    &$myseek;
+
+    if ($off == 0) {
+        if ($byte eq 'RIFF') {
+            $off += 72;
+            &$myseek;
+        } else {
+            seek(FILE, 36, 0);
+            read(FILE, my $b, 5);
+            if ($b eq 'MACRZ') {
+                $off += 324;
+                &$myseek;
+            }
+        }
+    }
+
+    $bytes = unpack 'l', $byte;
+    seek(FILE, 0, 2);
+    $eof = tell(FILE);
+    seek(FILE, -128, 2);
+    $off += 128 if <FILE> =~ /^TAG/ ? 1 : 0;
+    close(FILE);
+
+    @$h{qw(ID layer protection_bit bitrate_index
+        sampling_freq padding_bit private_bit
+        mode mode_extension copyright original
+        emphasis)} = (
+        ($bytes>>19)&1, ($bytes>>17)&3, ($bytes>>16)&1, ($bytes>>12)&15, 
+        ($bytes>>10)&3, ($bytes>>9)&1, ($bytes>>8)&1, ($bytes>>6)&3, 
+        ($bytes>>4)&3, ($bytes>>3)&1, ($bytes>>2)&1, $bytes&3, 
+    );
+
+    if ($h->{bitrate_index} == 0 || $h->{bitrate_index} == 15 ||
+        #($h->{ID} != 1 && $h->{ID} != 3) ||  # ???
+        (($bytes & 0xFFE00000) != 0xFFE00000)) {
+        if (!$once) {
+            return get_mp3info($file, 36, 0) if !$o;
+            return get_mp3info($file, $o+128, (caller(33) ? 1 : 0));
+        } else {
+            return if caller(1024);
+            return get_mp3info($file, $o+1, 2);
+        }
+    }
+#    printf("%10s %10s %s ", $o, $byte, $file) if $DEBUG;
+
+    $h->{mode_extension} = 0 if !$h->{mode};
+    if ($h->{ID}) {$h->{size} = $h->{mode} == 3 ? 21 : 36}
+    else {$h->{size} = $h->{mode} == 3 ? 13 : 21}
+    $h->{size} += 2 if $h->{protection_bit} == 0;
+    $h->{bitrate} = $t_bitrate[$h->{ID}][3-$h->{layer}][$h->{bitrate_index}];
+    $h->{fs} = $t_sampling_freq[$h->{ID}][$h->{sampling_freq}];
+    return if !$h->{fs} || !$h->{bitrate};
+    if ($h->{ID}) {$h->{mean_frame_size} = (144000 * $h->{bitrate})/$h->{fs}}
+    else {$h->{mean_frame_size} = (72000 * $h->{bitrate})/$h->{fs}}
+
+    $h->{layer} = $h->{mode};
+    $h->{freq_idx} = 3 * $h->{ID} + $h->{sampling_freq};
+    $h->{'length'} =
+        (($eof - $off) / $h->{mean_frame_size}) *
+        ((115200/2)*(1+$h->{ID})) / $h->{fs};
+    $h->{secs} = $h->{'length'} / 100;
+
+    $i->{MM} = int $h->{secs}/60;
+    $i->{SS} = int $h->{secs}%60;  # ? ceil() ?  leftover seconds?
+    $i->{STEREO} = $h->{ID};
+    $i->{LAYER} = $h->{layer} >= 0 ? ($h->{layer} == 3 ? 2 : 3) : '';
+    $i->{BITRATE} = $h->{bitrate} >= 0 ? $h->{bitrate} : '';
+    $i->{FREQUENCY} = $h->{freq_idx} >= 0 ?
+        $frequency_tbl[$h->{freq_idx}] : '';
+
+    return($i);
+}
+
+$SIG{__WARN__} = sub {warn @_ unless $_[0] =~ /recursion/};  # :-)
 
 BEGIN { 
   @mp3_genres = (
@@ -215,9 +337,35 @@ BEGIN {
   );
 }
 
+
 __END__
 
 =pod
+
+=head1 HISTORY
+
+=over 4
+
+=item v0.12, Friday, October 2, 1998
+
+Added C<get_mp3info>.  Thanks again to F<mp3tool> source from
+Johann Lindvall, because I basically stole it straight (after
+converting it from C to Perl, of course).
+
+I did everything I could to find the header info, but if 
+anyone has valid MP3 files that are not recognized, or has suggestions
+for improvement of the algorithms, let me know.
+
+=item v0.04, Tuesday, September 29, 1998
+
+Changed a few things, replaced a regex with an C<unpack> 
+(Meng Weng Wong E<lt>mengwong@pobox.comE<gt>).
+
+=item v0.03, Tuesday, September 8, 1998
+
+First public release.
+
+=back
 
 =head1 AUTHOR AND COPYRIGHT
 
@@ -236,6 +384,6 @@ Helped me figure it all out.
 
 =head1 VERSION
 
-v0.03, Tuesday, September 8, 1998
+v0.12, Friday, October 2, 1998
 
 =cut
