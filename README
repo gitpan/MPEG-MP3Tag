@@ -1,0 +1,78 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+
+Tuesday, September 8, 1998
+
+This archive can always be obtained from:
+
+    http://pudge.net/macperl/
+    http://perl.com/CPAN/authors/id/CNANDOR/
+    http://perl.com/CPAN/modules/by-module/MPEG/
+
+Mac users: The file is a tarred, gzipped file.  Use Stuffit Expander 
+or a similar program to get at the archive.
+
+Please let me know how well it does(n't) work, and any changes you'd 
+like to see.
+
+#============================================================================
+
+NAME
+    MPEG::MP3Tag - Manipulate / fetch TAG info from a MPEG 2 Layer III
+    audio file.
+
+SYNOPSIS
+        #!perl -w
+        use MPEG::MP3Tag;
+        set_mp3tag('Pearls_Before_Swine.mp3', 'Pearls Before Swine', q"77's",
+          'Sticks and Stones', '1990', q"(c) 1990 77's LTD.", 'rock & roll');
+        my $tag = get_mp3tag('Pearls_Before_Swine.mp3');
+        $tag->{GENRE} = 'rock';
+        set_mp3tag('Pearls_Before_Swine.mp3', $tag);
+
+DESCRIPTION
+    set_mp3tag (FILE, TITLE, ARTIST, ALBUM, YEAR, COMMENT, GENRE)
+    set_mp3tag (FILE, $HASHREF)
+    Adds/changes tag information in an MP3 audio file. Will clobber any
+    existing information in file. All fields have a 30-byte limit, except
+    for YEAR, which has a four-byte limit.
+
+    GENRE is a case-insensitive text string representing a genre found in
+    `@mp3_genres'.
+
+    Will accept either a list of values, or a hashref of the type returned
+    by `get_mp3tag'.
+
+    get_mp3tag (FILE)
+    Returns hash reference containing tag information in MP3 file. Same
+    info as described in `set_mp3tag'.
+
+AUTHOR AND COPYRIGHT
+    Chris Nandor <pudge@pobox.com> http://pudge.net/
+
+    Copyright (c) 1998 Chris Nandor. All rights reserved. This program is
+    free software; you can redistribute it and/or modify it under the same
+    terms as Perl itself. Please see the Perl Artistic License.
+
+    Thanks to Johann Lindvall for his mp3tool program:
+
+        http://www.dtek.chalmers.se/~d2linjo/mp3/mp3tool.html
+
+    Helped me figure it all out.
+
+VERSION
+    v0.03, Tuesday, September 8, 1998
+
+-----BEGIN PGP SIGNATURE-----
+Version: PGPfreeware 5.0 for non-commercial use <http://www.pgp.com>
+Charset: noconv
+
+iQCVAwUBNfUhRShcZja3bnKtAQEG6QP+IdoFkwlmcv286JW0t5MhPvy24sQ+PzGU
+awfR771vNc15pSfjDE31O1LS9Dv+2yzwjZv52noDzFfdMcNMmT9IA/hkdUYnCTWd
+p8eRniEr4MYjjBjWOJYPnPOKUQlBFaSkvZU77HtfSvV89TAnJEKxi0SNIWdT+3Q6
+/ItBeDjRWMw=
+=AHBL
+-----END PGP SIGNATURE-----
+
+-- 
+Chris Nandor          mailto:pudge@pobox.com         http://pudge.net/
+%PGPKey = ('B76E72AD', [1024, '0824090B CE73CA10  1FF77F13 8180B6B6'])
